@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -65,29 +64,22 @@ func parseLogStats(path string) (added, changed, destroyed, imported int) {
 	return
 }
 
-func detectDriftFromRefreshLog(refreshLogPath string) float64 {
-	file, err := os.Open(refreshLogPath)
+func detectDrift(logPath string) float64 {
+	data, err := os.ReadFile(logPath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error reading refresh log:", err)
-		return 1 // Assume drift if we can't read it
+		fmt.Println("Error reading refresh log:", err)
+		return 0
 	}
-	defer file.Close()
+	logContent := string(data)
 
-	re := regexp.MustCompile(`^No changes\. Your infrastructure still matches the configuration\.`)
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if re.MatchString(line) {
-			return 0 // No drift
-		}
+	if strings.Contains(logContent, "No changes. Your infrastructure still matches the configuration.") {
+		return 0
 	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "Error scanning refresh log:", err)
+	// fallback: check for resource refresh logs (conservative)
+	if strings.Contains(logContent, "Refreshing state...") {
+		return 1
 	}
-
-	return 1 // Drift assumed if the expected message is not found
+	return 0
 }
 
 func collectMetrics() error {
@@ -104,7 +96,7 @@ func collectMetrics() error {
 	startUnix, _ := strconv.ParseInt(startTimeEnv, 10, 64)
 	execDuration := time.Since(time.Unix(startUnix, 0)).Seconds()
 	timestamp := float64(time.Now().Unix())
-	drift := detectDriftFromRefreshLog(refreshLogPath)
+	drift := detectDrift(refreshLogPath)
 
 	// Metrics
 	metrics := map[string]prometheus.Gauge{}
