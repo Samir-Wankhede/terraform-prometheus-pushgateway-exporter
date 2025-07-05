@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -64,20 +65,29 @@ func parseLogStats(path string) (added, changed, destroyed, imported int) {
 	return
 }
 
-func detectDrift(refreshLogPath string) int {
+func detectDriftFromRefreshLog(refreshLogPath string) float64 {
 	file, err := os.Open(refreshLogPath)
 	if err != nil {
-		return 0
+		fmt.Fprintln(os.Stderr, "Error reading refresh log:", err)
+		return 1 // Assume drift if we can't read it
 	}
 	defer file.Close()
 
+	re := regexp.MustCompile(`^No changes\. Your infrastructure still matches the configuration\.`)
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		if strings.Contains(scanner.Text(), "Refreshing state...") {
-			return 1
+		line := scanner.Text()
+		if re.MatchString(line) {
+			return 0 // No drift
 		}
 	}
-	return 0
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, "Error scanning refresh log:", err)
+	}
+
+	return 1 // Drift assumed if the expected message is not found
 }
 
 func collectMetrics() error {
@@ -88,12 +98,13 @@ func collectMetrics() error {
 
 	job := os.Getenv("PUSHGATEWAY_JOB")
 	instance := os.Getenv("GITHUB_RUN_ID")
+	workflowName := os.Getenv("GITHUB_WORKFLOW")
 	commitMsg := os.Getenv("COMMIT_MESSAGE")
 
 	startUnix, _ := strconv.ParseInt(startTimeEnv, 10, 64)
 	execDuration := time.Since(time.Unix(startUnix, 0)).Seconds()
 	timestamp := float64(time.Now().Unix())
-	drift := detectDrift(refreshLogPath)
+	drift := detectDriftFromRefreshLog(refreshLogPath)
 
 	// Metrics
 	metrics := map[string]prometheus.Gauge{}
@@ -171,6 +182,7 @@ func collectMetrics() error {
 	pusher := push.New(pushURL, job).
 		Grouping("instance", instance).
 		Grouping("commit_message", commitMsg).
+		Grouping("workflow_name", workflowName).
 		Grouping("job", job)
 
 	for _, g := range metrics {
