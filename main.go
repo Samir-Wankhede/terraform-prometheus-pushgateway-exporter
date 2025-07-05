@@ -112,7 +112,7 @@ func main() {
 	start := time.Now()
 
 	logPath := os.Getenv("TERRAFORM_PLAN_PATH")
-	pushURL := os.Getenv("PUSHGATEWAY_URL")
+	pushIP := os.Getenv("PUSHGATEWAY_URL")
 	job := os.Getenv("PUSHGATEWAY_JOB")
 	instance := os.Getenv("GITHUB_RUN_ID")
 
@@ -124,7 +124,7 @@ func main() {
 		executionSuccess.Set(1)
 	}
 	executionDuration.Set(time.Since(start).Seconds())
-
+	pushURL := "http://" + pushIP + ":9091"
 	err = push.New(pushURL, job).
 		Grouping("instance", instance).
 		Collector(resourcesTotal).
