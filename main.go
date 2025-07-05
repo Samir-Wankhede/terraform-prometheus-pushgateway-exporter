@@ -72,14 +72,10 @@ func detectDrift(logPath string) float64 {
 	}
 	logContent := string(data)
 
-	if strings.Contains(logContent, "No changes. Your infrastructure still matches the configuration.") {
+	if strings.Contains(strings.ToLower(logContent), "no changes") {
 		return 0
 	}
-	// fallback: check for resource refresh logs (conservative)
-	if strings.Contains(logContent, "Refreshing state...") {
-		return 1
-	}
-	return 0
+	return 1
 }
 
 func collectMetrics() error {
@@ -199,12 +195,23 @@ func isTerraformRunSuccessful(logPath string) bool {
 	}
 	defer file.Close()
 
+	hasError := false
+	hasNoChanges := false
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.Contains(line, "Error:") || strings.Contains(line, "│ Error") {
-			return false
+		line := strings.ToLower(scanner.Text())
+
+		if strings.Contains(line, "error") {
+			hasError = true
 		}
+		if strings.Contains(line, "no changes") {
+			hasNoChanges = true
+		}
+	}
+
+	if hasError && !hasNoChanges {
+		return false
 	}
 	return true
 }
