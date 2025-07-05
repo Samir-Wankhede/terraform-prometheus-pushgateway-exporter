@@ -138,6 +138,7 @@ func main() {
 	if err != nil {
 		fmt.Println("Push failed:", err)
 		os.Exit(1)
+		return
 	}
 	os.Exit(0)
 }
