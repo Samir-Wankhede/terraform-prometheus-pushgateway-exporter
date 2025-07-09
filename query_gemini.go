@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"google.golang.org/genai"
@@ -27,19 +26,18 @@ func QueryGemini(runID string) error {
 	// fmt.Println(client.ClientConfig().APIKey)
 
 	logs := map[string]string{
-		"refresh": fmt.Sprintf("terraform-refresh-%s.log", runID),
-		"plan":    fmt.Sprintf("terraform-plan-%s.log", runID),
-		"apply":   fmt.Sprintf("terraform-apply-%s.log", runID),
+		"refresh": fmt.Sprintf("terraform-refresh-%v.log", runID),
+		"plan":    fmt.Sprintf("terraform-plan-%v.log", runID),
+		"apply":   fmt.Sprintf("terraform-apply-%v.log", runID),
 	}
 
 	var builder strings.Builder
 	builder.WriteString("Here are three (two if apply is not present) logs from a Terraform execution:\n---\n")
 	for label, name := range logs {
-		path := filepath.Join("exporter", name)
-		// Check if the file exists before attempting to read
+		path := name
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			fmt.Printf("Warning: Log file %s not found. Skipping.\n", path)
-			continue // Skip this file if it doesn't exist
+			continue
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -65,7 +63,7 @@ Keep it under 250 words.`)
 		return fmt.Errorf("no content returned from Gemini")
 	}
 
-	outputPath := filepath.Join("exporter", fmt.Sprintf("terraform-gemini-summary-%s.log", runID))
+	outputPath := fmt.Sprintf("terraform-gemini-summary-%s.log", runID)
 	if err := os.WriteFile(outputPath, []byte(text), 0644); err != nil {
 		return fmt.Errorf("writing summary to file: %w", err)
 	}
