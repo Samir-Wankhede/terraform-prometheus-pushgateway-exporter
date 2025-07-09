@@ -221,4 +221,8 @@ func main() {
 		fmt.Println("Error pushing metrics:", err)
 		os.Exit(1)
 	}
+	if err := QueryGemini(os.Getenv("GITHUB_RUN_ID")); err != nil {
+		fmt.Println("Error Getting Gemini Files:", err)
+		os.Exit(1)
+	}
 }
